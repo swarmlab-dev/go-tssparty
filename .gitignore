@@ -1,0 +1,4 @@
+.vscode
+cli/cli
+*.out
+*.so
