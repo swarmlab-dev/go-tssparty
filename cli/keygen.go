@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/anandvarma/namegen"
@@ -51,14 +52,25 @@ func keygenCmd() cli.Command {
 			partycount := c.Int("n")
 			threshold := c.Int("t")
 			if threshold > partycount {
-				fmt.Printf("threshold (t) must be lower than party count (n)")
+				return fmt.Errorf("threshold (t) must be lower than party count (n)")
 			}
 
 			if c.Bool("eddsa") {
-				return tssparty.JoinEddsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
+				local, err := tssparty.JoinEddsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
+				if err != nil {
+					return err
+				}
+				jsonLocal, _ := json.Marshal(local)
+				fmt.Printf("%s\n", jsonLocal)
 			} else {
-				return tssparty.JoinEcdsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
+				local, err := tssparty.JoinEcdsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
+				if err != nil {
+					return err
+				}
+				jsonLocal, _ := json.Marshal(local)
+				fmt.Printf("%s\n", jsonLocal)
 			}
+			return nil
 		},
 	}
 }

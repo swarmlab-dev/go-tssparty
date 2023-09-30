@@ -12,11 +12,11 @@ import (
 	"github.com/swarmlab-dev/go-partybus/partybus"
 )
 
-func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, partycount int, threshold int) error {
-	fmt.Printf("ecdsa keygen session %s: partyCount=%v threshold=%v\n", sessionId, partycount, threshold)
+func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, partycount int, threshold int) (*keygen.LocalPartySaveData, error) {
+	logger.Infof("eddsa keygen session %s: partyCount=%v threshold=%v\n", sessionId, partycount, threshold)
 	key := common.MustGetRandomInt(256)
 	thisParty := tss.NewPartyID(partyId, "", key)
-	fmt.Printf("local party is %s (%s)", thisParty.Id, hex.EncodeToString(thisParty.Key))
+	logger.Infof("local party is %s (%s)\n", thisParty.Id, hex.EncodeToString(thisParty.Key))
 
 	out := make(chan partybus.PeerMessage)
 	in := make(chan partybus.PeerMessage)
@@ -27,11 +27,11 @@ func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, 
 	defer close(sig)
 	err := partybus.ConnectToPartyBus(partyBusUrl, sessionId, thisParty.Id, out, in, sig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// wait until all guests arrived at the party
-	fmt.Printf("wait all guest before starting the party...\n")
+	logger.Debug("wait all guest before starting the party...")
 	var guests []string
 	for status := range sig {
 		guests = status.Peers
@@ -39,16 +39,16 @@ func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, 
 			break
 		}
 	}
-	fmt.Printf("alright! %s got %v guests: [ %s ]\n", sessionId, partycount, strings.Join(guests, ", "))
+	logger.Debugf("%s got %v guests: [ %s ]", sessionId, partycount, strings.Join(guests, ", "))
 
 	// share partyId and wait until all partyIds are received
-	fmt.Printf("sharing keys...\n")
+	logger.Debug("sharing keys...")
 	parties := make([]*tss.PartyID, partycount)
 	parties[0] = thisParty
 
 	thisPartyJson, err := json.Marshal(thisParty)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	out <- partybus.NewBroadcastMessage(thisParty.Id, thisPartyJson)
 
@@ -57,11 +57,11 @@ func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, 
 		var peerPartyId tss.PartyID
 		err := json.Unmarshal(msg.Msg, &peerPartyId)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if msg.From != peerPartyId.Id {
-			return fmt.Errorf("partyId should be the same as message origin")
+			return nil, fmt.Errorf("partyId should be the same as message origin")
 		}
 
 		parties[i] = &peerPartyId
@@ -75,14 +75,14 @@ func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, 
 	// build threshold context
 	sortedParties := tss.SortPartyIDs(parties)
 	ctx := tss.NewPeerContext(sortedParties)
-	ec := tss.S256()
+	ec := tss.Edwards()
 	params := tss.NewParameters(ec, ctx, thisParty, len(sortedParties), threshold)
 	partyIDMap := make(map[string]*tss.PartyID)
 	for _, id := range sortedParties {
 		partyIDMap[id.Id] = id
 	}
 
-	fmt.Printf("sorted parties: [ %s ]\n", strings.Join(MapArrayOfPartyID(sortedParties, func(p *tss.PartyID) string { return fmt.Sprintf("%s (%s)", p.Id, hex.EncodeToString(p.Key)) }), ", "))
+	logger.Debugf("sorted parties: [ %s ]", strings.Join(MapArrayOfPartyID(sortedParties, func(p *tss.PartyID) string { return fmt.Sprintf("%s (%s)", p.Id, hex.EncodeToString(p.Key)) }), ", "))
 
 	// start the party
 	outCh := make(chan tss.Message)
@@ -94,11 +94,10 @@ func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, 
 		for msg := range ch {
 			bytes, _, err := msg.WireBytes()
 			if err != nil {
-				fmt.Printf("error while wiring message to peers: %s\n", err.Error())
+				logger.Error("error while wiring message to peers: %s", err.Error())
 				return
 			}
 			to := MapArrayOfPartyID(msg.GetTo(), func(p *tss.PartyID) string { return p.Id })
-			fmt.Printf("%s >>> [ %s ] (%v)\n", thisParty.Id, strings.Join(to, ", "), len(bytes))
 			out <- partybus.NewMulticastMessage(thisParty.Id, to, bytes)
 		}
 	}(outCh)
@@ -106,26 +105,20 @@ func JoinEddsaKeygenParty(partyBusUrl string, sessionId string, partyId string, 
 	// process incoming messages to be received from peers
 	go func(ch <-chan partybus.PeerMessage) {
 		for msg := range ch {
-			fmt.Printf("[ %s ] <<< %s (%v)\n", strings.Join(msg.To, ", "), msg.From, len(msg.Msg))
-			_, err := party.UpdateFromBytes(msg.Msg, partyIDMap[msg.From], true)
+			//fmt.Printf("[ %s ] <<< %s (%v)\n", strings.Join(msg.To, ", "), msg.From, len(msg.Msg))
+			_, err := party.UpdateFromBytes(msg.Msg, partyIDMap[msg.From], msg.IsBroadcast())
 			if err != nil {
-				fmt.Printf("error while receiving message from peer %s: %s\n", msg.From, err.Error())
+				logger.Error("error while receiving message from peer %s: %s", msg.From, err.Error())
 				return
 			}
 		}
 	}(in)
 
-	go func() {
-		err := party.Start()
-		if err != nil {
-			fmt.Printf("error while partying: %s\n", err.Error())
-		}
-	}()
+	errp := party.Start()
+	if errp != nil {
+		return nil, errp
+	}
 
 	local := <-endCh
-	jsonLocal, _ := json.Marshal(local)
-	fmt.Printf("local share: %s", jsonLocal)
-
-	return nil
-
+	return local, nil
 }
