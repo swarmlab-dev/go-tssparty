@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/anandvarma/namegen"
 	"github.com/swarmlab-dev/go-tss/tssparty"
@@ -10,8 +12,8 @@ import (
 
 func signingCmd() cli.Command {
 	return cli.Command{
-		Name:    "keygen",
-		Aliases: []string{"k"},
+		Name:    "signing",
+		Aliases: []string{"s"},
 		Usage:   "Signing threshold ceremony to sign a message",
 		Flags: []cli.Flag{
 			cli.StringFlag{
@@ -29,6 +31,11 @@ func signingCmd() cli.Command {
 				Usage: "this peer id",
 				Value: namegen.New().Get(),
 			},
+			cli.StringFlag{
+				Name:  "k",
+				Usage: "this peer's key share",
+				Value: namegen.New().Get(),
+			},
 			cli.BoolFlag{
 				Name:  "eddsa",
 				Usage: "set keygen for eddsa (default is ecdsa)",
@@ -43,8 +50,14 @@ func signingCmd() cli.Command {
 				Value: 2,
 				Usage: "number of party necessary to sign (threshold)",
 			},
+			cli.StringFlag{
+				Name:  "msg",
+				Value: "",
+				Usage: "message to sign with threshold algorithm",
+			},
 		},
 		Action: func(c *cli.Context) error {
+			message := c.String("msg")
 			partyBusUrl := c.String("bus")
 			sessionId := c.String("s")
 			partyId := c.String("p")
@@ -54,11 +67,29 @@ func signingCmd() cli.Command {
 				return fmt.Errorf("threshold (t) must be lower than party count (n)")
 			}
 
-			if c.Bool("eddsa") {
-				return tssparty.JoinEddsaSigningParty(partyBusUrl, sessionId, partyId, partycount, threshold)
-			} else {
-				return tssparty.JoinEcdsaSigningParty(partyBusUrl, sessionId, partyId, partycount, threshold)
+			keyShare := c.String("k")
+			if keyShare == "-" {
+				keyShareB, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return err
+				}
+				keyShare = string(keyShareB)
 			}
+
+			if c.Bool("eddsa") {
+				local, err := tssparty.JoinEddsaSigningParty(partyBusUrl, sessionId, message, keyShare, partyId, partycount, threshold)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("%s\n", local)
+			} else {
+				local, err := tssparty.JoinEcdsaSigningParty(partyBusUrl, sessionId, message, keyShare, partyId, partycount, threshold)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("%s\n", local)
+			}
+			return nil
 		},
 	}
 }

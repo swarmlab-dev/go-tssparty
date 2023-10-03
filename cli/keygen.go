@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/anandvarma/namegen"
@@ -60,15 +59,13 @@ func keygenCmd() cli.Command {
 				if err != nil {
 					return err
 				}
-				jsonLocal, _ := json.Marshal(local)
-				fmt.Printf("%s\n", jsonLocal)
+				fmt.Printf("%s\n", local)
 			} else {
 				local, err := tssparty.JoinEcdsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
 				if err != nil {
 					return err
 				}
-				jsonLocal, _ := json.Marshal(local)
-				fmt.Printf("%s\n", jsonLocal)
+				fmt.Printf("%s\n", local)
 			}
 			return nil
 		},
