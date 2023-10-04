@@ -50,23 +50,20 @@ func keygenCmd() cli.Command {
 			partyId := c.String("p")
 			partycount := c.Int("n")
 			threshold := c.Int("t")
-			if threshold > partycount {
-				return fmt.Errorf("threshold (t) must be lower than party count (n)")
-			}
+
+			var tssParty tssparty.KeygenTssParty
 
 			if c.Bool("eddsa") {
-				local, err := tssparty.JoinEddsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", local)
+				tssParty = tssparty.NewEddsaKeygenTssParty(partyId, nil, partycount, threshold)
 			} else {
-				local, err := tssparty.JoinEcdsaKeygenParty(partyBusUrl, sessionId, partyId, partycount, threshold)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", local)
+				tssParty = tssparty.NewEcdsaKeygenTssParty(partyId, nil, partycount, threshold)
 			}
+
+			keyShare, err := tssparty.ConnectAndGetKeyShare(tssParty, partyBusUrl, sessionId)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n", keyShare)
 			return nil
 		},
 	}

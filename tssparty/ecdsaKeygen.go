@@ -2,56 +2,59 @@ package tssparty
 
 import (
 	"encoding/json"
+	"math/big"
 	"time"
 
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
-func JoinEcdsaKeygenParty(
-	partyBusUrl string,
-	sessionId string,
-	partyId string,
-	partycount int,
-	threshold int) (string, error) {
-	logger.Infof("ecdsa keygen session %s: partyCount=%v threshold=%v\n", sessionId, partycount, threshold)
+func NewEcdsaKeygenTssParty(localID string, localKey *big.Int, n int, t int) KeygenTssParty {
+	return &EcdsaKeygenTssPartyState{
+		tssPartyState: NewTssPartyState(NewLocalParty(localID, localKey), n, t),
+	}
+}
 
-	// compute preparams
-	logger.Debug("computing preparams...")
-	preParams, _ := keygen.GeneratePreParams(1 * time.Minute)
+func (party *EcdsaKeygenTssPartyState) Init() error {
+	return party.stateFunc(IDLE, INITIALIZED, func() error {
+		logger.Debug("computing preparams...")
+		party.preParams, _ = keygen.GeneratePreParams(1 * time.Minute)
+		return nil
+	})
+}
 
-	// connect to bus and get all peer's ID
-	tssParty := CreateNewTssParty(partycount, threshold, partyId, nil)
-	tssParty.ConnectToBus(partyBusUrl, sessionId)
-	defer tssParty.DisconnectFromBus()
+func (party *EcdsaKeygenTssPartyState) GetKeyShare() (string, error) {
+	return party.stateFunc2(PEERS_KNOWN, TSS_DONE, func() (string, error) {
+		outCh := make(chan tss.Message)
+		endCh := make(chan *keygen.LocalPartySaveData)
+		defer close(outCh)
+		defer close(endCh)
+		tssParams := party.GetParams(true)
+		ecdsaKeygenParty := keygen.NewLocalParty(tssParams, outCh, endCh, *party.preParams)
 
-	err := tssParty.WaitForGuests(partycount)
+		// start
+		go party.ProcessOutgoingMessageToTransport(outCh)
+		go party.ProcessIncomingMessageFromTransport(ecdsaKeygenParty)
+		errp := ecdsaKeygenParty.Start()
+		if errp != nil {
+			return "", errp
+		}
+
+		// return generated key share
+		ret := <-endCh
+		jsonRet, err := json.Marshal(ret)
+		if err != nil {
+			return "", err
+		}
+		return string(jsonRet), nil
+	})
+}
+
+func JsonToEcdsaKey(jsonEcdsaKey string) (*keygen.LocalPartySaveData, error) {
+	var key keygen.LocalPartySaveData
+	err := json.Unmarshal([]byte(jsonEcdsaKey), &key)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	// init keygen party
-	outCh := make(chan tss.Message)
-	endCh := make(chan *keygen.LocalPartySaveData)
-	defer close(outCh)
-	defer close(endCh)
-	tssParams := tssParty.GetParams(true)
-	ecdsaKeygenParty := keygen.NewLocalParty(tssParams, outCh, endCh, *preParams)
-
-	// start
-	go tssParty.ProcessOutgoingMessageToTransport(outCh)
-	go tssParty.ProcessIncomingMessageFromTransport(ecdsaKeygenParty)
-	errp := ecdsaKeygenParty.Start()
-	if errp != nil {
-		return "", errp
-	}
-
-	// return generated key share
-	ret := <-endCh
-	jsonRet, err := json.Marshal(ret)
-	if err != nil {
-		return "", err
-	}
-	return string(jsonRet), nil
-
+	return &key, nil
 }

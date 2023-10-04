@@ -57,7 +57,7 @@ func signingCmd() cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			message := c.String("msg")
+			msg := c.String("msg")
 			partyBusUrl := c.String("bus")
 			sessionId := c.String("s")
 			partyId := c.String("p")
@@ -76,19 +76,22 @@ func signingCmd() cli.Command {
 				keyShare = string(keyShareB)
 			}
 
+			var tssParty tssparty.SigningTssParty
+			var err error
 			if c.Bool("eddsa") {
-				local, err := tssparty.JoinEddsaSigningParty(partyBusUrl, sessionId, message, keyShare, partyId, partycount, threshold)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", local)
+				tssParty, err = tssparty.NewEddsaSigningTssParty(partyId, keyShare, partycount, threshold)
 			} else {
-				local, err := tssparty.JoinEcdsaSigningParty(partyBusUrl, sessionId, message, keyShare, partyId, partycount, threshold)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", local)
+				tssParty, err = tssparty.NewEcdsaSigningTssParty(partyId, keyShare, partycount, threshold)
 			}
+			if err != nil {
+				return err
+			}
+
+			signedMsg, err := tssparty.ConnectAndSignMessage(tssParty, partyBusUrl, sessionId, msg)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n", signedMsg)
 			return nil
 		},
 	}
