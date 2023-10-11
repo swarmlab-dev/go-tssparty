@@ -17,7 +17,7 @@ func NewEddsaSigningTssParty(localID string, jsonKeyShare string, n int, t int) 
 	}
 
 	return &EddsaSigningTssPartyState{
-		tssPartyState: NewTssPartyState(NewLocalParty(localID, key.ShareID), n, t),
+		tssPartyState: NewTssPartyState(NewPartyID(localID, key.ShareID), n, t),
 		keyShare:      key,
 	}, nil
 }

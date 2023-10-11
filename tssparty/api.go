@@ -4,10 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"strings"
 
-	"github.com/bnb-chain/tss-lib/v2/common"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/swarmlab-dev/go-partybus/partybus"
 )
@@ -50,16 +48,6 @@ func ConnectAndSignMessage(party SigningTssParty, partyBusUrl string, sessionId 
 		return "", err
 	}
 	return ret, nil
-}
-
-func NewLocalParty(localID string, localKey *big.Int) *tss.PartyID {
-	key := localKey
-	if key == nil {
-		key = common.MustGetRandomInt(256)
-	}
-	thisParty := tss.NewPartyID(localID, localID, key)
-	logger.Infof("local party is %s (%s)", thisParty.Id, hex.EncodeToString(thisParty.Key))
-	return thisParty
 }
 
 func NewTssPartyState(localParty *tss.PartyID, n int, t int) *tssPartyState {
@@ -191,7 +179,7 @@ func (party *tssPartyState) ExchangeIds(n int) (string, error) {
 			party.partyIDMap[id.Id] = id
 		}
 
-		ret := strings.Join(MapArrayOfPartyID(party.sortedParties, func(p *tss.PartyID) string { return p.Id }), ",")
+		ret := strings.Join(MapArrayOfPartyID(party.sortedParties, func(p *tss.PartyID) string { return fmt.Sprintf("%s:%s", p.Id, hex.EncodeToString(p.Key)) }), ",")
 		logger.Debugf("sorted parties: [ %s ]", strings.Join(MapArrayOfPartyID(party.sortedParties, func(p *tss.PartyID) string { return fmt.Sprintf("%s (%s)", p.Id, hex.EncodeToString(p.Key)) }), ", "))
 		return ret, nil
 	})

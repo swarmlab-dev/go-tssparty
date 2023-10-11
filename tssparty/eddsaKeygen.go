@@ -9,8 +9,18 @@ import (
 
 func NewEddsaKeygenTssParty(localID string, n int, t int) KeygenTssParty {
 	return &EddsaKeygenTssPartyState{
-		tssPartyState: NewTssPartyState(NewLocalParty(localID, nil), n, t),
+		tssPartyState: NewTssPartyState(NewPartyID(localID, nil), n, t),
 	}
+}
+
+func NewEddsaKeygenTssPartyWithKey(localID string, localKeyBase16 string, n int, t int) (KeygenTssParty, error) {
+	partyId, err := NewPartyIDFromKey(localID, localKeyBase16, 16)
+	if err != nil {
+		return nil, err
+	}
+	return &EddsaKeygenTssPartyState{
+		tssPartyState: NewTssPartyState(partyId, n, t),
+	}, nil
 }
 
 func (party *EddsaKeygenTssPartyState) GetKeyShare() (string, error) {

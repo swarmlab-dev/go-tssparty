@@ -10,8 +10,18 @@ import (
 
 func NewEcdsaKeygenTssParty(localID string, n int, t int) KeygenTssParty {
 	return &EcdsaKeygenTssPartyState{
-		tssPartyState: NewTssPartyState(NewLocalParty(localID, nil), n, t),
+		tssPartyState: NewTssPartyState(NewPartyID(localID, nil), n, t),
 	}
+}
+
+func NewEcdsaKeygenTssPartyWithKey(localID string, localKeyBase16 string, n int, t int) (KeygenTssParty, error) {
+	partyId, err := NewPartyIDFromKey(localID, localKeyBase16, 16)
+	if err != nil {
+		return nil, err
+	}
+	return &EcdsaKeygenTssPartyState{
+		tssPartyState: NewTssPartyState(partyId, n, t),
+	}, nil
 }
 
 func (party *EcdsaKeygenTssPartyState) Init() error {
