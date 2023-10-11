@@ -1,4 +1,7 @@
 .vscode
 cli/cli
+cli/tssparty
 *.out
 *.so
+tssparty-sources.jar
+tssparty.aar

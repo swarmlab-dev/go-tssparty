@@ -54,9 +54,9 @@ func keygenCmd() cli.Command {
 			var tssParty tssparty.KeygenTssParty
 
 			if c.Bool("eddsa") {
-				tssParty = tssparty.NewEddsaKeygenTssParty(partyId, nil, partycount, threshold)
+				tssParty = tssparty.NewEddsaKeygenTssParty(partyId, partycount, threshold)
 			} else {
-				tssParty = tssparty.NewEcdsaKeygenTssParty(partyId, nil, partycount, threshold)
+				tssParty = tssparty.NewEcdsaKeygenTssParty(partyId, partycount, threshold)
 			}
 
 			keyShare, err := tssparty.ConnectAndGetKeyShare(tssParty, partyBusUrl, sessionId)

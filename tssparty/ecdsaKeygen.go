@@ -2,16 +2,15 @@ package tssparty
 
 import (
 	"encoding/json"
-	"math/big"
 	"time"
 
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
-func NewEcdsaKeygenTssParty(localID string, localKey *big.Int, n int, t int) KeygenTssParty {
+func NewEcdsaKeygenTssParty(localID string, n int, t int) KeygenTssParty {
 	return &EcdsaKeygenTssPartyState{
-		tssPartyState: NewTssPartyState(NewLocalParty(localID, localKey), n, t),
+		tssPartyState: NewTssPartyState(NewLocalParty(localID, nil), n, t),
 	}
 }
 

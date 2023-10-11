@@ -12,6 +12,46 @@ import (
 	"github.com/swarmlab-dev/go-partybus/partybus"
 )
 
+func ConnectAndGetKeyShare(party KeygenTssParty, partyBusUrl string, sessionId string) (string, error) {
+	defer party.Clean()
+
+	err := party.Init()
+	if err != nil {
+		return "", err
+	}
+
+	_, err = party.PrepareTransport(partyBusUrl, sessionId, party.GetPartyCount())
+	if err != nil {
+		return "", err
+	}
+
+	ret, err := party.GetKeyShare()
+	if err != nil {
+		return "", err
+	}
+	return ret, nil
+}
+
+func ConnectAndSignMessage(party SigningTssParty, partyBusUrl string, sessionId string, msg string) (string, error) {
+	defer party.Clean()
+
+	err := party.Init()
+	if err != nil {
+		return "", err
+	}
+
+	_, err = party.PrepareTransport(partyBusUrl, sessionId, party.GetThreshold()+1)
+	if err != nil {
+		return "", err
+	}
+
+	ret, err := party.SignMessage(msg)
+	if err != nil {
+		return "", err
+	}
+	return ret, nil
+}
+
 func NewLocalParty(localID string, localKey *big.Int) *tss.PartyID {
 	key := localKey
 	if key == nil {
@@ -45,19 +85,19 @@ func (party *tssPartyState) Init() error {
 	})
 }
 
-func (party *tssPartyState) PrepareTransport(partyBusUrl string, sessionId string, n int) error {
+func (party *tssPartyState) PrepareTransport(partyBusUrl string, sessionId string, n int) (string, error) {
 	err := party.ConnectToPartyBus(partyBusUrl, sessionId)
 	if err != nil {
 		party.step = ERROR
-		return err
+		return "", err
 	}
 
-	err = party.WaitForGuestsAndExchangeIDs(n)
+	ret, err := party.WaitForGuestsAndExchangeIDs(n)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return ret, nil
 }
 
 func (party *tssPartyState) ConnectToPartyBus(partyBusUrl string, sessionId string) error {
@@ -80,18 +120,18 @@ func (party *tssPartyState) DisconnectFromBus() error {
 	return nil
 }
 
-func (party *tssPartyState) WaitForGuestsAndExchangeIDs(n int) error {
+func (party *tssPartyState) WaitForGuestsAndExchangeIDs(n int) (string, error) {
 	err := party.WaitForGuests(n)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = party.ExchangeIds(n)
+	ret, err := party.ExchangeIds(n)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return ret, nil
 }
 
 func (party *tssPartyState) WaitForGuests(n int) error {
@@ -112,8 +152,8 @@ func (party *tssPartyState) WaitForGuests(n int) error {
 	})
 }
 
-func (party *tssPartyState) ExchangeIds(n int) error {
-	return party.stateFunc(PEERS_CONNECTED, PEERS_KNOWN, func() error {
+func (party *tssPartyState) ExchangeIds(n int) (string, error) {
+	return party.stateFunc2(PEERS_CONNECTED, PEERS_KNOWN, func() (string, error) {
 		logger.Debug("exchanging party ids...")
 
 		parties := make([]*tss.PartyID, n)
@@ -121,7 +161,7 @@ func (party *tssPartyState) ExchangeIds(n int) error {
 
 		thisPartyJson, err := json.Marshal(party.thisParty)
 		if err != nil {
-			return err
+			return "", err
 		}
 		party.outBus <- partybus.NewBroadcastMessage(party.thisParty.Id, thisPartyJson)
 
@@ -130,11 +170,11 @@ func (party *tssPartyState) ExchangeIds(n int) error {
 			var peerPartyId tss.PartyID
 			err := json.Unmarshal(msg.Msg, &peerPartyId)
 			if err != nil {
-				return err
+				return "", err
 			}
 
 			if msg.From != peerPartyId.Id {
-				return fmt.Errorf("partyId should be the same as message origin")
+				return "", fmt.Errorf("partyId should be the same as message origin")
 			}
 
 			parties[i] = &peerPartyId
@@ -151,8 +191,9 @@ func (party *tssPartyState) ExchangeIds(n int) error {
 			party.partyIDMap[id.Id] = id
 		}
 
+		ret := strings.Join(MapArrayOfPartyID(party.sortedParties, func(p *tss.PartyID) string { return p.Id }), ",")
 		logger.Debugf("sorted parties: [ %s ]", strings.Join(MapArrayOfPartyID(party.sortedParties, func(p *tss.PartyID) string { return fmt.Sprintf("%s (%s)", p.Id, hex.EncodeToString(p.Key)) }), ", "))
-		return nil
+		return ret, nil
 	})
 }
 

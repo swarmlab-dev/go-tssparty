@@ -2,15 +2,14 @@ package tssparty
 
 import (
 	"encoding/json"
-	"math/big"
 
 	"github.com/bnb-chain/tss-lib/v2/eddsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/tss"
 )
 
-func NewEddsaKeygenTssParty(localID string, localKey *big.Int, n int, t int) KeygenTssParty {
+func NewEddsaKeygenTssParty(localID string, n int, t int) KeygenTssParty {
 	return &EddsaKeygenTssPartyState{
-		tssPartyState: NewTssPartyState(NewLocalParty(localID, localKey), n, t),
+		tssPartyState: NewTssPartyState(NewLocalParty(localID, nil), n, t),
 	}
 }
 

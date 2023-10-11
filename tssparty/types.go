@@ -16,10 +16,10 @@ type TssParty interface {
 	Init() error                                                  // step 1
 	ConnectToPartyBus(partyBusUrl string, sessionId string) error // step 2
 	WaitForGuests(n int) error                                    // step 3
-	ExchangeIds(n int) error                                      // step 4
+	ExchangeIds(n int) (string, error)                            // step 4
 
-	PrepareTransport(partyBusUrl string, sessionId string, n int) error // step 2, 3, 4
-	WaitForGuestsAndExchangeIDs(n int) error                            // step 3, 4
+	PrepareTransport(partyBusUrl string, sessionId string, n int) (string, error) // step 2, 3, 4
+	WaitForGuestsAndExchangeIDs(n int) (string, error)                            // step 3, 4
 	DisconnectFromBus() error
 	Clean() error
 }
@@ -134,44 +134,4 @@ func (party *tssPartyState) setState(step tssPartyStep) {
 		logger.Info("party has errored")
 	}
 	party.step = step
-}
-
-func ConnectAndGetKeyShare(party KeygenTssParty, partyBusUrl string, sessionId string) (string, error) {
-	defer party.Clean()
-
-	err := party.Init()
-	if err != nil {
-		return "", err
-	}
-
-	err = party.PrepareTransport(partyBusUrl, sessionId, party.GetPartyCount())
-	if err != nil {
-		return "", err
-	}
-
-	ret, err := party.GetKeyShare()
-	if err != nil {
-		return "", err
-	}
-	return ret, nil
-}
-
-func ConnectAndSignMessage(party SigningTssParty, partyBusUrl string, sessionId string, msg string) (string, error) {
-	defer party.Clean()
-
-	err := party.Init()
-	if err != nil {
-		return "", err
-	}
-
-	err = party.PrepareTransport(partyBusUrl, sessionId, party.GetThreshold()+1)
-	if err != nil {
-		return "", err
-	}
-
-	ret, err := party.SignMessage(msg)
-	if err != nil {
-		return "", err
-	}
-	return ret, nil
 }
